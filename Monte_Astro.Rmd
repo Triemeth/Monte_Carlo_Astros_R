@@ -1,0 +1,283 @@
+---
+title: "Monte Carlo Astros"
+author: "Ethan Triem"
+date: "2024-11-21"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(Lahman)
+library(patchwork)
+library(dplyr)
+library(ggcorrplot)
+library(car)
+
+teams_2010 <- Teams|> filter(yearID >= 2010)
+teams_2010_numeric <- teams_2010[, sapply(teams_2010, is.numeric)]
+
+teams_2010_numeric <- mutate(teams_2010_numeric, X1B = H - X2B-X3B-HR,
+                  TB = X1B +2*X2B + 3*X3B + 4*HR,
+                  RC = (H + BB)*TB/(AB + BB))
+
+teams_2010_numeric <- mutate(teams_2010_numeric, OBP = (H + BB)/(AB + BB),
+                  SLG = (X1B + 2*X2B + 3*X3B + 4*HR)/AB,
+                  OPS = OBP + SLG)
+
+```
+
+```{r}
+ggplot(data = teams_2010_numeric, aes(x = W)) +
+  geom_histogram() + 
+  theme_minimal() + 
+  labs(x = "Wins", title = "Histogram of Wins")
+```
+
+```{r}
+ggplot(data = teams_2010, aes(x=lgID, y = W)) +
+  geom_boxplot() + 
+  theme_minimal() + 
+  labs(x = "League", y = "Wins", title = "Wins by league")
+```
+```{r}
+hou_phi_2010 <- teams_2010 |>
+  filter(teamID %in% c("HOU", "PHI"))
+
+ggplot(data = hou_phi_2010, aes(x = yearID, y = W, color = teamID)) +
+  geom_line() + 
+  theme_minimal() +
+  labs(x = "Year", y = "Wins")
+```
+
+
+```{r}
+cor_matrix <- cor(teams_2010_numeric)
+wins_losses_corr <- cor_matrix[c("W", "L"), ]
+
+wins_losses_corr <- t(wins_losses_corr)
+ggcorrplot(as.matrix(wins_losses_corr), 
+           title = "Correlation: Wins and Losses",
+           colors = c("darkred", "white", "darkgreen"), 
+           outline.color = "black",) + 
+  guides(x= guide_axis(angle=45)) +
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank()) + 
+  theme_minimal()
+```
+
+
+```{r}
+wins_corr <- cor_matrix["W", ]
+wins_corr_ranked <- sort(wins_corr, decreasing = TRUE)
+
+print(wins_corr_ranked)
+```
+```{r}
+ggplot(data = teams_2010_numeric, aes(x=W, y=ERA)) +
+  geom_point() + 
+  geom_smooth() +
+  theme_minimal() +
+  labs(x = "Wins", y ="ERA", title = "ERA Compared to Wins")
+```
+```{r}
+ggplot(data = teams_2010_numeric, aes(x=W, y=R)) +
+  geom_point() + 
+  geom_smooth() +
+  theme_minimal() +
+  labs(x = "Wins", y ="Runs", title = "Runs Compared to Wins")
+```
+
+```{r}
+p_vals <- c()
+
+for (var in colnames((teams_2010_numeric))) {
+  if (var !="W"){
+    formula <- as.formula(paste("W~", var))
+    fit <- lm(formula, data = teams_2010_numeric)
+    
+    p_val <-summary(fit)$coefficients[2,4]
+    p_vals[var] <- p_val
+  }
+}
+
+p_vals_ranked <- sort(p_vals, decreasing = FALSE)
+print(p_vals_ranked)
+```
+
+
+```{r}
+off <- c("R" = .3, "RC" = .25, "TB" = .2, "BB" = .15, "H" = .1)
+def <- c("SV" = .3, "SOA" = .25, "IPouts" = .2, "SHO" = .15, "ERA" = .1)
+
+world_series_2022 <- SeriesPost %>%
+  filter(yearID == 2022, round == "WS")
+
+teams_2022 <- c(world_series_2022$teamIDwinner, world_series_2022$teamIDloser)
+
+world_series_teams <- Teams %>%
+  filter(yearID == 2022, teamID %in% teams_2022)
+
+
+simulate_game <- function(team1_stats, team2_stats, off, def, n = 10000) {
+  team1_off <- sum(team1_stats[names(off)] * off)
+  team2_off <- sum(team2_stats[names(off)] * off)
+  
+  team1_def <- sum(team1_stats[names(def)] * def)
+  team2_def <- sum(team2_stats[names(def)] * def)
+  
+  team1_score <- rnorm(n, mean = team1_off / sqrt(162), sd = team1_def / sqrt(162))
+  team2_score <- rnorm(n, mean = team2_off / sqrt(162), sd = team2_def / sqrt(162))
+  sum(team1_score > team2_score) / n 
+}
+
+hou_stats <- world_series_teams %>% filter(teamID == "HOU")
+phi_stats <- world_series_teams %>% filter(teamID == "PHI")
+
+hou_stats <- mutate(hou_stats,
+                    X1B = H - X2B-X3B-HR,
+                    TB = X1B +2*X2B + 3*X3B + 4*HR,
+                    RC = (H + BB)*TB/(AB + BB))
+
+phi_stats <- mutate(phi_stats,
+                    X1B = H - X2B-X3B-HR,
+                    TB = X1B +2*X2B + 3*X3B + 4*HR,
+                    RC = (H + BB)*TB/(AB + BB))
+
+```
+
+```{r}
+set.seed(1)
+hou_win_prob <- simulate_game(hou_stats, phi_stats, off, def)
+phi_win_prob <- 1 - hou_win_prob
+
+cat("Game 1", "\n")
+cat("Astros Win Probability:", hou_win_prob, "\n")
+cat("Phillies Win Probability:", phi_win_prob, "\n")
+cat("\n")
+
+set.seed(2)
+hou_win_prob <- simulate_game(hou_stats, phi_stats, off, def)
+phi_win_prob <- 1 - hou_win_prob
+
+cat("Game 2", "\n")
+cat("Astros Win Probability:", hou_win_prob, "\n")
+cat("Phillies Win Probability:", phi_win_prob, "\n")
+cat("\n")
+
+set.seed(3)
+hou_win_prob <- simulate_game(hou_stats, phi_stats, off, def)
+phi_win_prob <- 1 - hou_win_prob
+
+cat("Game 3", "\n")
+cat("Astros Win Probability:", hou_win_prob, "\n")
+cat("Phillies Win Probability:", phi_win_prob, "\n")
+cat("\n")
+
+set.seed(4)
+hou_win_prob <- simulate_game(hou_stats, phi_stats, off, def)
+phi_win_prob <- 1 - hou_win_prob
+
+cat("Game 4", "\n")
+cat("Astros Win Probability:", hou_win_prob, "\n")
+cat("Phillies Win Probability:", phi_win_prob, "\n")
+cat("\n")
+
+set.seed(5)
+hou_win_prob <- simulate_game(hou_stats, phi_stats, off, def)
+phi_win_prob <- 1 - hou_win_prob
+
+cat("Game 5", "\n")
+cat("Astros Win Probability:", hou_win_prob, "\n")
+cat("Phillies Win Probability:", phi_win_prob, "\n")
+cat("\n")
+
+set.seed(6)
+hou_win_prob <- simulate_game(hou_stats, phi_stats, off, def)
+phi_win_prob <- 1 - hou_win_prob
+
+cat("Game 6", "\n")
+cat("Astros Win Probability:", hou_win_prob, "\n")
+cat("Phillies Win Probability:", phi_win_prob, "\n")
+cat("\n")
+
+set.seed(7)
+hou_win_prob <- simulate_game(hou_stats, phi_stats, off, def)
+phi_win_prob <- 1 - hou_win_prob
+
+cat("Game 7", "\n")
+cat("Astros Win Probability:", hou_win_prob, "\n")
+cat("Phillies Win Probability:", phi_win_prob, "\n")
+
+```
+```{r}
+set.seed(8)
+hou_win_prob <- simulate_game(hou_stats, phi_stats, off, def)
+phi_win_prob <- 1 - hou_win_prob
+
+cat("Game 1", "\n")
+cat("Astros Win Probability:", hou_win_prob, "\n")
+cat("Phillies Win Probability:", phi_win_prob, "\n")
+cat("\n")
+
+set.seed(9)
+hou_win_prob <- simulate_game(hou_stats, phi_stats, off, def)
+phi_win_prob <- 1 - hou_win_prob
+
+cat("Game 2", "\n")
+cat("Astros Win Probability:", hou_win_prob, "\n")
+cat("Phillies Win Probability:", phi_win_prob, "\n")
+cat("\n")
+
+set.seed(10)
+hou_win_prob <- simulate_game(hou_stats, phi_stats, off, def)
+phi_win_prob <- 1 - hou_win_prob
+
+cat("Game 3", "\n")
+cat("Astros Win Probability:", hou_win_prob, "\n")
+cat("Phillies Win Probability:", phi_win_prob, "\n")
+cat("\n")
+
+set.seed(11)
+hou_win_prob <- simulate_game(hou_stats, phi_stats, off, def)
+phi_win_prob <- 1 - hou_win_prob
+
+cat("Game 4", "\n")
+cat("Astros Win Probability:", hou_win_prob, "\n")
+cat("Phillies Win Probability:", phi_win_prob, "\n")
+cat("\n")
+
+set.seed(12)
+hou_win_prob <- simulate_game(hou_stats, phi_stats, off, def)
+phi_win_prob <- 1 - hou_win_prob
+
+cat("Game 5", "\n")
+cat("Astros Win Probability:", hou_win_prob, "\n")
+cat("Phillies Win Probability:", phi_win_prob, "\n")
+cat("\n")
+
+set.seed(13)
+hou_win_prob <- simulate_game(hou_stats, phi_stats, off, def)
+phi_win_prob <- 1 - hou_win_prob
+
+cat("Game 6", "\n")
+cat("Astros Win Probability:", hou_win_prob, "\n")
+cat("Phillies Win Probability:", phi_win_prob, "\n")
+cat("\n")
+
+set.seed(14)
+hou_win_prob <- simulate_game(hou_stats, phi_stats, off, def)
+phi_win_prob <- 1 - hou_win_prob
+
+cat("Game 7", "\n")
+cat("Astros Win Probability:", hou_win_prob, "\n")
+cat("Phillies Win Probability:", phi_win_prob, "\n")
+```
+
+
+
+
+
