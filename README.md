@@ -2,13 +2,17 @@
 
 
 ## Goal/Overview
-This project aims to simulate the 2022 world series between the Astros and Philies using the monto carlo method using R.
+This project simulates the 2022 World Series matchup between the Houston Astros and the Philadelphia Phillies using the Monte Carlo method in R. The goal is to model and predict series outcomes based on historical team performance data.
 
 ## Data/EDA:
-The data is obtained from the Lahman package. The EDA at the beginning portion of the quato file is of all teams from 2010 to 2022. Then later compares between only the Astros and philies. Correlation between all variable and weather it was a win or a loss is checked. P values are ranked to see the highest correlation weather a team wins or loses is outputted for later use.
+The data for this project is sourced from the Lahman package, which contains comprehensive historical baseball statistics. The analysis begins by examining all MLB teams from 2010 through 2022 to establish baseline performance patterns across the league. From there, the focus narrows to a direct comparison between the Houston Astros and the Philadelphia Phillies.
+
+To evaluate the impact of different factors on game outcomes, correlation analysis is performed between various performance variables and win/loss results. P-values are then ranked to determine which variables are most strongly associated with winning. These top predictors are selected for use in the subsequent simulation model.
 
 ## Simulation:
-A formula is created using the top 5 variables for both wins and losses. The seven game serious is then simulated. The model tends to predict the outcome of the seris as a whole correctly but not the out come of a specific game. This makes sense due to 
+Using the five most significant variables identified from the EDA, a formula is constructed to model game outcomes. A Monte Carlo simulation is then applied to replicate the dynamics of a seven-game World Series matchup between the Astros and the Phillies.
+
+The results demonstrate that while the model does not consistently predict the outcome of individual games, it performs effectively in forecasting the overall series winner. This finding is consistent with expectations, as individual baseball games can be highly variable, but outcomes across a series tend to stabilize and reflect underlying team strengths more reliably.
 
 ## Libraries:
 * tidyverse
