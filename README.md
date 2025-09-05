@@ -1,3 +1,6 @@
 # Monte_Carlo_Astros_R
 
-Simulations of the Astros versus the Philies 2022 world series (From Sports Analytics Course)
+
+## Goal/Overview
+This project aims to simulate the 2022 world series between the Astros and Philies using the monto carlo method using R.
+
